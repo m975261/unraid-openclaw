@@ -1,0 +1,84 @@
+name: "Build & Push Docker Image"
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "Rebuild reason"
+        required: false
+        default: "Manual trigger"
+  repository_dispatch:
+    types: [upstream-release]
+
+env:
+  IMAGE_NAME: muaeabudhabi/openclaw
+  UPSTREAM_URL: https://github.com/openclaw/openclaw
+
+jobs:
+  build-and-push:
+    name: "Build (amd64 + arm64) → DockerHub"
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout wrapper repo (Dockerfile + templates)
+        uses: actions/checkout@v4
+        with:
+          path: wrapper
+
+      - name: Clone upstream source code (build context)
+        run: |
+          git clone --depth=1 ${{ env.UPSTREAM_URL }} source
+          # Overlay our generated Dockerfile onto the upstream source.
+          # Our Dockerfile is optimized for Unraid (non-root user, healthcheck,
+          # multi-stage build). It may replace an existing upstream Dockerfile.
+          cp wrapper/Dockerfile source/Dockerfile
+          echo "Build context files:"
+          ls source/ | head -20
+
+      - name: Set up QEMU (multi-arch support)
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Extract metadata (tags + labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha,prefix=sha-,format=short
+            type=semver,pattern={{version}}
+
+      - name: Build and push (linux/amd64 + linux/arm64)
+        uses: docker/build-push-action@v5
+        with:
+          context: ./source
+          file: ./source/Dockerfile
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Update DockerHub description from README
+        uses: peter-evans/dockerhub-description@v3
+        continue-on-error: true
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          repository: ${{ env.IMAGE_NAME }}
+          readme-filepath: ./wrapper/README.md

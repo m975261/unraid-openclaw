@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <n>openclaw-worker</n>
+  <Repository>muaeabudhabi/openclaw:latest</Repository>
+  <Registry>https://hub.docker.com/r/muaeabudhabi/openclaw/</Registry>
+  <Network>bridge</Network>
+  <Shell>bash</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/openclaw/openclaw</Support>
+  <Project>https://github.com/openclaw/openclaw</Project>
+  <Overview>Generic background worker for openclaw. Same image as main app, different start command.</Overview>
+  <Description>Generic worker process for openclaw.</Description>
+  <Category>Tools: Other:</Category>
+  <WebUI/>
+  <TemplateURL>https://raw.githubusercontent.com/m975261/unraid-openclaw/main/unraid-templates/my-openclaw-worker.xml</TemplateURL>
+  <ExtraParams/>
+  <PostArgs>npm run worker</PostArgs>
+  <CPUset/>
+  <DateInstalled/>
+  <DonateText/>
+  <DonateLink/>
+  <Requires>my-openclaw</Requires>
+  <Config Name="AppData" Target="/data" Default="/mnt/user/appdata/openclaw/data" Mode="rw" Description="Shared data with main app" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/openclaw/data</Config>
+  <Config Name="PUID" Target="PUID" Default="99" Mode="" Description="User ID" Type="Variable" Display="advanced" Required="false" Mask="false">99</Config>
+  <Config Name="PGID" Target="PGID" Default="100" Mode="" Description="Group ID" Type="Variable" Display="advanced" Required="false" Mask="false">100</Config>
+  <Config Name="Timezone" Target="TZ" Default="UTC" Mode="" Description="Timezone" Type="Variable" Display="always" Required="false" Mask="false">UTC</Config>
+</Container>

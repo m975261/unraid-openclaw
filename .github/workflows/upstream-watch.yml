@@ -1,0 +1,63 @@
+name: "Watch Upstream for New Releases"
+# Source repo: https://github.com/openclaw/openclaw
+
+on:
+  schedule:
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+jobs:
+  check-upstream:
+    name: "Check openclaw/openclaw for new release"
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+
+      - name: Fetch latest upstream release or tag
+        id: check
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+          UPSTREAM: ${{ vars.UPSTREAM_REPO || 'openclaw/openclaw' }}
+        run: |
+          set -euo pipefail
+          LATEST=$(curl -sf \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            "https://api.github.com/repos/$UPSTREAM/releases/latest" \
+            | jq -r '.tag_name // empty' 2>/dev/null || true)
+          if [ -z "$LATEST" ]; then
+            LATEST=$(curl -sf \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              "https://api.github.com/repos/$UPSTREAM/tags" \
+              | jq -r '.[0].name // empty' 2>/dev/null || true)
+          fi
+          KNOWN=$(cat .upstream-release 2>/dev/null || echo "")
+          echo "latest=$LATEST"     >> "$GITHUB_OUTPUT"
+          echo "last_known=$KNOWN"  >> "$GITHUB_OUTPUT"
+          if [ -n "$LATEST" ] && [ "$LATEST" != "$KNOWN" ]; then
+            echo "new_release=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "new_release=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Record new version and trigger rebuild
+        if: steps.check.outputs.new_release == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+        run: |
+          echo "${{ steps.check.outputs.latest }}" > .upstream-release
+          git config user.name  "TITAN Upstream Watcher"
+          git config user.email "titan-bot@users.noreply.github.com"
+          git add .upstream-release
+          git commit -m "chore: upstream released ${{ steps.check.outputs.latest }}"
+          git push
+          curl -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github.v3+json" \
+            "https://api.github.com/repos/m975261/unraid-openclaw/dispatches" \
+            -d '{"event_type":"upstream-release"}'

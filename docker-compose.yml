@@ -1,0 +1,57 @@
+version: '3.8'
+services:
+  openclaw:
+    image: muaeabudhabi/openclaw:latest
+    restart: unless-stopped
+    labels:
+      com.centurylinklabs.watchtower.enable: 'true'
+      org.titan.app: openclaw
+    environment:
+    - NODE_ENV=production
+    - LOG_LEVEL=info
+    - PUID=99
+    - PGID=100
+    - UMASK=022
+    - DATABASE_URL=postgresql://openclaw:changeme@openclaw_postgres:5432/openclaw
+    volumes:
+    - /mnt/user/appdata/openclaw/data:/data
+    - /mnt/user/appdata/openclaw/config:/config
+    logging:
+      driver: json-file
+      options: &id001
+        max-size: 10m
+        max-file: '3'
+    networks:
+    - openclaw_net
+    depends_on:
+      openclaw_postgres:
+        condition: service_healthy
+  openclaw_postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+    - POSTGRES_DB=openclaw
+    - POSTGRES_USER=openclaw
+    - POSTGRES_PASSWORD=changeme
+    volumes:
+    - openclaw_postgres_data:/var/lib/postgresql/data
+    networks:
+    - openclaw_net
+    logging:
+      driver: json-file
+      options: *id001
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - pg_isready -U ${POSTGRES_USER:-app}
+      interval: 30s
+      timeout: 5s
+      retries: 5
+networks:
+  openclaw_net:
+    driver: bridge
+volumes:
+  openclaw_data:
+    driver: local
+  openclaw_postgres_data:
+    driver: local
