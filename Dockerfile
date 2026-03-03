@@ -24,10 +24,13 @@ RUN pnpm run build
             WORKDIR /app
             ENV NODE_ENV=production
 
-            # Runtime needs git too if any module lazy-downloads at startup
+            # Runtime needs git + package manager available:
+            #   git          — some modules do lazy git operations at startup
+            #   corepack/pnpm/yarn — app may spawn `pnpm exec ...` or `yarn ...` at runtime
             RUN apt-get update && apt-get install -y --no-install-recommends \
                     git ca-certificates \
                 && rm -rf /var/lib/apt/lists/*
+            RUN npm install -g pnpm
 
             COPY --from=builder /app ./
 
