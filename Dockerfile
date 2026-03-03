@@ -20,22 +20,28 @@ RUN pnpm run build
             WORKDIR /app
 
             ENV NODE_ENV=production
-            # PNPM_HOME inside /app so pnpm exec tool-downloads land somewhere
-            # writable when running as root. Also ensures tools survive restarts
-            # if /app is bind-mounted as an Unraid appdata path.
-            ENV PNPM_HOME=/app/.pnpm-store
-            ENV PATH=/app/.pnpm-store/bin:$PATH
+            # Use pnpm's default home for root — avoids any path mismatch with
+            # the managed-tools bootstrap which hardcodes this location.
+            ENV PNPM_HOME=/root/.local/share/pnpm
+            ENV PATH=/root/.local/share/pnpm/bin:$PATH
 
             RUN apt-get update && apt-get install -y --no-install-recommends \
                     git ca-certificates curl \
                 && rm -rf /var/lib/apt/lists/*
 
-            RUN npm install -g pnpm
+            RUN npm install -g pnpm@latest
 
             COPY --from=builder /app ./
 
-            # Pre-create pnpm store dir so first pnpm exec doesn't need to mkdir
-            RUN mkdir -p /app/.pnpm-store/bin
+            # Pre-bootstrap pnpm managed-tools so `pnpm exec <tool>` never
+# downloads at container startup (requires no network at runtime).
+RUN pnpm add pnpm@latest \
+        --loglevel=error \
+        --ignore-scripts \
+        --config.strict-dep-builds=false \
+        --config.node-linker=hoisted \
+        --config.bin=bin \
+    || true
 
             EXPOSE 18789
             # No healthcheck for non-web app
