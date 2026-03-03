@@ -23,10 +23,15 @@ RUN pnpm run build
             FROM node:20-bookworm-slim
             WORKDIR /app
             ENV NODE_ENV=production
+            # Tell pnpm to store its tools cache inside /app which appuser owns.
+            # Without this, `pnpm exec <tool>` tries to mkdir under /home/appuser/.local
+            # which either doesn't exist or has wrong permissions → EACCES.
+            ENV PNPM_HOME=/app/.pnpm-home
+            ENV PATH=/app/.pnpm-home:$PATH
 
-            # Runtime needs git + package manager available:
+            # Runtime needs git + pnpm available to any user:
             #   git          — some modules do lazy git operations at startup
-            #   corepack/pnpm/yarn — app may spawn `pnpm exec ...` or `yarn ...` at runtime
+            #   pnpm         — app may spawn `pnpm exec ...` at runtime (e.g. tsdown)
             RUN apt-get update && apt-get install -y --no-install-recommends \
                     git ca-certificates \
                 && rm -rf /var/lib/apt/lists/*
@@ -34,7 +39,11 @@ RUN pnpm run build
 
             COPY --from=builder /app ./
 
-            RUN groupadd -r appgroup && useradd -r -g appgroup appuser
+            # Create appuser and give them ownership of the entire /app tree
+            # including the pnpm tools cache directory.
+            RUN groupadd -r appgroup && useradd -r -g appgroup -d /app appuser \
+                && mkdir -p /app/.pnpm-home \
+                && chown -R appuser:appgroup /app
             USER appuser
 
             EXPOSE 18789
