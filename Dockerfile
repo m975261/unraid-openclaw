@@ -2,13 +2,8 @@
 
             WORKDIR /app
 
-            # Install system deps needed by native addons:
-            #   git          — required by node-llama-cpp and similar packages that
-            #                  clone source during postinstall
-            #   build-essential, python3 — for node-gyp compiled modules
-            #   ca-certificates — for HTTPS git clones
             RUN apt-get update && apt-get install -y --no-install-recommends \
-                    git build-essential python3 ca-certificates \
+                    git build-essential python3 ca-certificates curl \
                 && rm -rf /var/lib/apt/lists/*
 
             RUN corepack enable && corepack prepare pnpm@latest --activate
@@ -20,31 +15,27 @@
 RUN pnpm ui:build
 RUN pnpm run build
 
+            # ── Runtime stage ────────────────────────────────────────────────
             FROM node:20-bookworm-slim
             WORKDIR /app
-            ENV NODE_ENV=production
-            # Tell pnpm to store its tools cache inside /app which appuser owns.
-            # Without this, `pnpm exec <tool>` tries to mkdir under /home/appuser/.local
-            # which either doesn't exist or has wrong permissions → EACCES.
-            ENV PNPM_HOME=/app/.pnpm-home
-            ENV PATH=/app/.pnpm-home:$PATH
 
-            # Runtime needs git + pnpm available to any user:
-            #   git          — some modules do lazy git operations at startup
-            #   pnpm         — app may spawn `pnpm exec ...` at runtime (e.g. tsdown)
+            ENV NODE_ENV=production
+            # PNPM_HOME inside /app so pnpm exec tool-downloads land somewhere
+            # writable when running as root. Also ensures tools survive restarts
+            # if /app is bind-mounted as an Unraid appdata path.
+            ENV PNPM_HOME=/app/.pnpm-store
+            ENV PATH=/app/.pnpm-store/bin:$PATH
+
             RUN apt-get update && apt-get install -y --no-install-recommends \
-                    git ca-certificates \
+                    git ca-certificates curl \
                 && rm -rf /var/lib/apt/lists/*
+
             RUN npm install -g pnpm
 
             COPY --from=builder /app ./
 
-            # Create appuser and give them ownership of the entire /app tree
-            # including the pnpm tools cache directory.
-            RUN groupadd -r appgroup && useradd -r -g appgroup -d /app appuser \
-                && mkdir -p /app/.pnpm-home \
-                && chown -R appuser:appgroup /app
-            USER appuser
+            # Pre-create pnpm store dir so first pnpm exec doesn't need to mkdir
+            RUN mkdir -p /app/.pnpm-store/bin
 
             EXPOSE 18789
             # No healthcheck for non-web app
