@@ -45,4 +45,4 @@ RUN pnpm add pnpm@latest \
 
             EXPOSE 18789
             # No healthcheck for non-web app
-            CMD ["npm", "start"]
+            CMD ["openclaw", "gateway"]
