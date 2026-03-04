@@ -49,6 +49,13 @@ jobs:
 
       - name: Set up QEMU (multi-arch support)
         uses: docker/setup-qemu-action@v3
+        with:
+          cache-image: false
+          # cache-image: false — disables saving the binfmt Docker image
+          # to GitHub Actions cache. Without this, the post-step cache save
+          # fails with 'Unable to reserve cache key' and marks the entire
+          # job as failed even when the Docker build succeeded.
+          # Reference: https://github.com/docker/setup-qemu-action#inputs
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
