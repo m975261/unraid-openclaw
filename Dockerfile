@@ -27,8 +27,7 @@ RUN pnpm run build
                 && rm -rf /var/lib/apt/lists/*
             RUN corepack enable && corepack prepare pnpm@latest --activate
             COPY --from=builder /app ./
-            COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+            RUN printf '#!/bin/sh\n# TITAN Unraid Dockerizer — PUID/PGID entrypoint\nset -e\nPUID=${PUID:-99}\nPGID=${PGID:-100}\ngetent group appgroup >/dev/null 2>&1 || addgroup -g "$PGID" appgroup 2>/dev/null || addgroup --gid "$PGID" appgroup 2>/dev/null || true\ngetent passwd appuser >/dev/null 2>&1 || adduser -u "$PUID" -G appgroup -s /bin/sh -D appuser 2>/dev/null || adduser --uid "$PUID" --gid "$PGID" --shell /bin/sh --no-create-home --disabled-password appuser 2>/dev/null || true\nchown -R "$PUID:$PGID" /data /config 2>/dev/null || true\nexec su-exec appuser "$@"\n' > /usr/local/bin/docker-entrypoint.sh && chmod +x /usr/local/bin/docker-entrypoint.sh
 VOLUME ["/data", "/config"]
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
             EXPOSE 18789

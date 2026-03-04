@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <Container version="2">
-  <Name>openclaw-postgres</Name>
+  <n>openclaw-postgres</n>
   <Repository>postgres:16-alpine</Repository>
   <Registry>https://hub.docker.com/_/postgres/</Registry>
   <Network>bridge</Network>
