@@ -40,10 +40,27 @@ jobs:
       - name: Clone upstream source code (build context)
         run: |
           git clone --depth=1 ${{ env.UPSTREAM_URL }} source
-          # Overlay our generated Dockerfile onto the upstream source.
-          # Our Dockerfile is optimized for Unraid (non-root user, healthcheck,
-          # multi-stage build). It may replace an existing upstream Dockerfile.
-          cp wrapper/Dockerfile source/Dockerfile
+          # Dockerfile selection logic:
+          #
+          # If the upstream repo ships its own Dockerfile we use it — it is
+          # already tuned for that project's build process (custom build steps,
+          # native module compilation, multi-stage ordering, etc.).
+          # Overwriting it causes impossible-to-debug failures where upstream
+          # build scripts (e.g. pnpm ui:build) fail inside our generic template.
+          #
+          # If the upstream has NO Dockerfile we copy our TITAN-generated one
+          # which handles the common cases (Node/Python/Go/Rust/etc.).
+          #
+          # Either way, we save our generated file as Dockerfile.titan for
+          # reference — it contains the Unraid-optimised multi-stage template.
+          cp wrapper/Dockerfile source/Dockerfile.titan
+          if [ -f source/Dockerfile ]; then
+            echo "✓ Upstream Dockerfile found — using it as build context"
+            echo "  (TITAN-generated template saved as Dockerfile.titan)"
+          else
+            echo "✓ No upstream Dockerfile — using TITAN-generated Dockerfile"
+            cp wrapper/Dockerfile source/Dockerfile
+          fi
           echo "Build context files:"
           ls source/ | head -20
 
